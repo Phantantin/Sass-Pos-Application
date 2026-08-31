@@ -1,0 +1,92 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="700" viewBox="0 0 1440 700" role="img" aria-labelledby="title description">
+  <title id="title">Luồng bán hàng và báo cáo ca</title>
+  <desc id="description">Sơ đồ từ mở ca đến tạo đơn, hoàn tiền và tổng kết ca.</desc>
+  <defs>
+    <linearGradient id="background" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#fffdf8"/>
+      <stop offset="1" stop-color="#f8fafc"/>
+    </linearGradient>
+    <filter id="shadow" x="-10%" y="-15%" width="120%" height="140%">
+      <feDropShadow dx="0" dy="5" stdDeviation="5" flood-color="#0f172a" flood-opacity="0.12"/>
+    </filter>
+    <marker id="arrow" markerWidth="11" markerHeight="11" refX="9" refY="5.5" orient="auto">
+      <path d="M 0 0 L 11 5.5 L 0 11 z" fill="#64748b"/>
+    </marker>
+    <style>
+      .heading { font: 700 31px Arial, 'Segoe UI', sans-serif; fill: #0f172a; }
+      .subtitle { font: 400 17px Arial, 'Segoe UI', sans-serif; fill: #475569; }
+      .lane { font: 700 15px Arial, 'Segoe UI', sans-serif; fill: #334155; }
+      .step { font: 700 16px Arial, 'Segoe UI', sans-serif; fill: #0f172a; }
+      .detail { font: 400 13px Arial, 'Segoe UI', sans-serif; fill: #475569; }
+      .note { font: 700 13px Arial, 'Segoe UI', sans-serif; fill: #9f1239; }
+    </style>
+  </defs>
+  <rect width="1440" height="700" rx="24" fill="url(#background)"/>
+  <text x="720" y="58" text-anchor="middle" class="heading">Luồng bán hàng và báo cáo ca</text>
+  <text x="720" y="88" text-anchor="middle" class="subtitle">Các bước màu đỏ là điểm mà implementation hiện tại chưa hoàn tất hoặc chưa kiểm tra</text>
+
+  <rect x="45" y="132" width="1348" height="112" rx="14" fill="#eff6ff"/>
+  <rect x="45" y="266" width="1348" height="112" rx="14" fill="#f0fdf4"/>
+  <rect x="45" y="400" width="1348" height="112" rx="14" fill="#fff7ed"/>
+  <rect x="45" y="534" width="1348" height="112" rx="14" fill="#fdf2f8"/>
+  <text x="72" y="168" class="lane">THU NGÂN</text>
+  <text x="72" y="302" class="lane">ORDER SERVICE</text>
+  <text x="72" y="436" class="lane">REFUND SERVICE</text>
+  <text x="72" y="570" class="lane">SHIFT REPORT</text>
+
+  <path d="M 298 188 H 354" stroke="#64748b" stroke-width="3" fill="none" marker-end="url(#arrow)"/>
+  <path d="M 589 188 H 645" stroke="#64748b" stroke-width="3" fill="none" marker-end="url(#arrow)"/>
+  <path d="M 766 244 V 288" stroke="#64748b" stroke-width="3" fill="none" marker-end="url(#arrow)"/>
+  <path d="M 1002 322 H 1058" stroke="#64748b" stroke-width="3" fill="none" marker-end="url(#arrow)"/>
+  <path d="M 1174 378 V 422" stroke="#64748b" stroke-width="3" fill="none" marker-end="url(#arrow)"/>
+  <path d="M 808 378 V 556" stroke="#64748b" stroke-width="3" fill="none" marker-end="url(#arrow)"/>
+  <path d="M 1200 478 V 556" stroke="#64748b" stroke-width="3" fill="none" marker-end="url(#arrow)"/>
+
+  <g filter="url(#shadow)">
+    <rect x="156" y="155" width="142" height="66" rx="12" fill="#ffffff" stroke="#93c5fd" stroke-width="2"/>
+    <text x="227" y="183" text-anchor="middle" class="step">POST /start</text>
+    <text x="227" y="204" text-anchor="middle" class="detail">Mở ca</text>
+  </g>
+  <g filter="url(#shadow)">
+    <rect x="354" y="155" width="235" height="66" rx="12" fill="#ffffff" stroke="#93c5fd" stroke-width="2"/>
+    <text x="472" y="183" text-anchor="middle" class="step">Ca của cashier trong ngày?</text>
+    <text x="472" y="204" text-anchor="middle" class="detail">Có → báo lỗi; không → tạo ShiftReport</text>
+  </g>
+  <g filter="url(#shadow)">
+    <rect x="645" y="155" width="242" height="66" rx="12" fill="#ffffff" stroke="#93c5fd" stroke-width="2"/>
+    <text x="766" y="183" text-anchor="middle" class="step">POST /api/orders</text>
+    <text x="766" y="204" text-anchor="middle" class="detail">Items + payment type + customer</text>
+  </g>
+
+  <g filter="url(#shadow)">
+    <rect x="646" y="289" width="238" height="66" rx="12" fill="#ffffff" stroke="#86efac" stroke-width="2"/>
+    <text x="765" y="317" text-anchor="middle" class="step">Lấy giá Product từ DB</text>
+    <text x="765" y="338" text-anchor="middle" class="detail">line price = sellingPrice × quantity</text>
+  </g>
+  <g filter="url(#shadow)">
+    <rect x="1058" y="289" width="240" height="66" rx="12" fill="#ffffff" stroke="#86efac" stroke-width="2"/>
+    <text x="1178" y="317" text-anchor="middle" class="step">Lưu Order + OrderItem</text>
+    <text x="1178" y="338" text-anchor="middle" class="detail">total = tổng line price</text>
+  </g>
+
+  <g filter="url(#shadow)">
+    <rect x="1058" y="423" width="240" height="66" rx="12" fill="#ffffff" stroke="#fdba74" stroke-width="2"/>
+    <text x="1178" y="451" text-anchor="middle" class="step">POST /api/refunds</text>
+    <text x="1178" y="472" text-anchor="middle" class="detail">Tìm order rồi lưu amount / reason</text>
+  </g>
+
+  <g filter="url(#shadow)">
+    <rect x="646" y="557" width="300" height="66" rx="12" fill="#ffffff" stroke="#f9a8d4" stroke-width="2"/>
+    <text x="796" y="585" text-anchor="middle" class="step">Đọc orders và refunds trong khoảng ca</text>
+    <text x="796" y="606" text-anchor="middle" class="detail">sales − refund = net sale; tổng hợp payment / top 5</text>
+  </g>
+  <g filter="url(#shadow)">
+    <rect x="1058" y="557" width="240" height="66" rx="12" fill="#fff1f2" stroke="#fb7185" stroke-width="2"/>
+    <text x="1178" y="583" text-anchor="middle" class="note">POST /end hiện gửi null</text>
+    <text x="1178" y="605" text-anchor="middle" class="detail">Cần truyền thời gian đóng ca thực</text>
+  </g>
+
+  <text x="1010" y="275" text-anchor="middle" class="note">Chưa kiểm tra ca mở, tồn kho hoặc quantity dương</text>
+  <text x="1178" y="408" text-anchor="middle" class="note">Chưa gán payment type / shift report / hoàn kho</text>
+</svg>
