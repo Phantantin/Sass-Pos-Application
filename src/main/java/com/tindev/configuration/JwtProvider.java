@@ -6,48 +6,53 @@ import io.jsonwebtoken.security.Keys;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.stereotype.Service;
+
 import javax.crypto.SecretKey;
-import java.util.*;
+import java.nio.charset.StandardCharsets;
+import java.util.Collection;
+import java.util.Date;
+import java.util.stream.Collectors;
 
 @Service
 public class JwtProvider {
-    // Tạo chìa khóa bảo mật từ chuỗi Secret đã khai báo
-    static SecretKey key = Keys.hmacShaKeyFor(JwtConstant.JWT_SECRET.getBytes());
+    private final JwtProperties properties;
+    private final SecretKey key;
 
-    // Hàm tạo Token dựa trên thông tin đăng nhập thành công
+    public JwtProvider(JwtProperties properties) {
+        this.properties = properties;
+        byte[] keyBytes = properties.secret().getBytes(StandardCharsets.UTF_8);
+        if (keyBytes.length < 32) {
+            throw new IllegalStateException("JWT_SECRET must contain at least 32 bytes JWT_SECRET=your-super-secret-jwt-key-for-saas-pos-2026");
+        }
+        this.key = Keys.hmacShaKeyFor(keyBytes);
+    }
+
     public String generateToken(Authentication authentication) {
         Collection<? extends GrantedAuthority> authorities = authentication.getAuthorities();
-
-        // Chuyển đổi danh sách quyền (Roles) thành chuỗi ngăn cách bởi dấu phẩy
-        String roles = populateAuthorities(authorities);
-
+        String roles = authorities.stream().map(GrantedAuthority::getAuthority).sorted()
+                .collect(Collectors.joining(","));
+        Date now = new Date();
         return Jwts.builder()
-                .issuedAt(new Date()) // Thời điểm tạo thẻ
-                .expiration(new Date(new Date().getTime() + 8400000)) // Thời hạn thẻ (khoảng 2.3 giờ)
-                .claim("email", authentication.getName()) // Lưu email vào thẻ
-                .claim("authorities", roles) // Lưu danh sách quyền vào thẻ
-                .signWith(key) // Ký tên bằng chìa khóa bí mật để tránh giả mạo
+                .issuedAt(now)
+                .expiration(new Date(now.getTime() + properties.expirationMs()))
+                .subject(authentication.getName())
+                .claim("authorities", roles)
+                .signWith(key)
                 .compact();
     }
 
-    // Hàm lấy Email từ một Token có sẵn
-    public String getEmailFromToken(String jwt) {
-        jwt = jwt.substring(7); // Loại bỏ chữ "Bearer " để lấy mã JWT thực tế
-        Claims claims = Jwts.parser()
-                .verifyWith(key)
-                .build()
-                .parseSignedClaims(jwt)
-                .getPayload(); // Giải mã thẻ để lấy nội dung bên trong
-
-        return String.valueOf(claims.get("email"));
+    public Claims parseToken(String token) {
+        return Jwts.parser().verifyWith(key).build().parseSignedClaims(token).getPayload();
     }
 
-    // Chuyển danh sách quyền từ Spring Security thành chuỗi String (ví dụ: "ROLE_ADMIN,ROLE_CASHIER")
-    private String populateAuthorities(Collection<? extends GrantedAuthority> authorities) {
-        Set<String> auths = new HashSet<>();
-        for (GrantedAuthority authority : authorities) {
-            auths.add(authority.getAuthority());
+    public String getEmailFromToken(String authorizationHeader) {
+        return parseToken(extractToken(authorizationHeader)).getSubject();
+    }
+
+    public String extractToken(String authorizationHeader) {
+        if (authorizationHeader == null || !authorizationHeader.startsWith(JwtConstant.BEARER_PREFIX)) {
+            throw new IllegalArgumentException("Missing Bearer token");
         }
-        return String.join(",", auths);
+        return authorizationHeader.substring(JwtConstant.BEARER_PREFIX.length());
     }
 }

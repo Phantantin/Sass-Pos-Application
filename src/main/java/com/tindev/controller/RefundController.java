@@ -4,8 +4,10 @@ package com.tindev.controller;
 import com.tindev.payload.dto.RefundDTO;
 import com.tindev.service.RefundService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDateTime;
@@ -14,14 +16,16 @@ import java.util.List;
 @RestController
 @RequiredArgsConstructor
 @RequestMapping("/api/refunds")
+@PreAuthorize("hasAnyRole('ADMIN', 'STORE_ADMIN', 'BRANCH_CASHIER')")
 public class RefundController {
     private final RefundService refundService;
 
     @PostMapping
+    @PreAuthorize("hasRole('BRANCH_CASHIER')")
     public ResponseEntity<RefundDTO> createRefund(
             @RequestBody RefundDTO refundDTO) throws Exception {
         RefundDTO refund = refundService.createRefund(refundDTO);
-        return ResponseEntity.ok(refund);
+        return ResponseEntity.status(HttpStatus.CREATED).body(refund);
     }
 
     @GetMapping

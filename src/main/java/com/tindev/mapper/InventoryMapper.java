@@ -14,6 +14,8 @@ public class InventoryMapper {
                 .productId(inventory.getProduct().getId())
                 .product(ProductMapper.toDTO(inventory.getProduct()))
                 .quantity(inventory.getQuantity())
+                .minStockLevel(inventory.getMinStockLevel())
+                .lastUpdate(inventory.getLastUpdate())
                 .build();
     }
     public static Inventory toEntity(InventoryDTO inventoryDTO,
@@ -23,6 +25,7 @@ public class InventoryMapper {
                 .branch(branch)
                 .product(product)
                 .quantity(inventoryDTO.getQuantity())
+                .minStockLevel(inventoryDTO.getMinStockLevel() == null ? 5 : inventoryDTO.getMinStockLevel())
                 .build();
     }
 }

@@ -15,6 +15,8 @@ public class OrderMapper {
                 .cashier(UserMapper.toDTO(order.getCashier()))
                 .customer(order.getCustomer())
                 .paymentType(order.getPaymentType())
+                .status(order.getStatus())
+                .idempotencyKey(order.getIdempotencyKey())
                 .createdAt(order.getCreatedAt())
                 .items(order.getItems().stream()
                         .map(OrderItemMapper::toDTO)

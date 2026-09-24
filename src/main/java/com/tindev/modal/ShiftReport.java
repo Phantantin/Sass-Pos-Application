@@ -4,6 +4,7 @@ import jakarta.persistence.*;
 import lombok.*;
 
 import java.time.LocalDateTime;
+import java.math.BigDecimal;
 import java.util.List;
 
 @Entity
@@ -15,15 +16,18 @@ import java.util.List;
 public class ShiftReport {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.AUTO)
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
     private LocalDateTime shiftStart;
     private LocalDateTime shiftEnd;
 
-    private Double totalSales;
-    private Double totalRefund;
-    private Double netSale;
+    @Column(precision = 19, scale = 2)
+    private BigDecimal totalSales;
+    @Column(precision = 19, scale = 2)
+    private BigDecimal totalRefund;
+    @Column(precision = 19, scale = 2)
+    private BigDecimal netSale;
     private int totalOrder;
 
     @ManyToOne
@@ -36,10 +40,10 @@ public class ShiftReport {
     @Transient
     private List<PaymentSummary> paymentSummaries;
 
-    @OneToMany(cascade = CascadeType.ALL)
+    @Transient
     private List<Product> topSellingProducts;
 
-    @OneToMany(cascade = CascadeType.ALL)
+    @Transient
     private List<Order> recentOrders;
 
     @OneToMany(mappedBy = "shiftReport", cascade = CascadeType.ALL)

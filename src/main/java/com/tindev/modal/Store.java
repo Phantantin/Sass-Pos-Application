@@ -16,13 +16,13 @@ import java.time.LocalDateTime;
 public class Store {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.AUTO)
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
     @Column(nullable = false)
     private String brand;
 
-    @OneToOne
+    @ManyToOne
     private User storeAdmin;
 
     private LocalDateTime createdAt;
@@ -32,7 +32,9 @@ public class Store {
 
     private String storeType;
 
-    private StoreStatus status;
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 20)
+    private StoreStatus status = StoreStatus.PENDING;
 
     @Embedded
     private StoreContact contact = new StoreContact();
@@ -40,7 +42,9 @@ public class Store {
     @PrePersist
     protected void onCreate(){
         createdAt = LocalDateTime.now();
-        status = StoreStatus.PENDING;
+        if (status == null) {
+            status = StoreStatus.PENDING;
+        }
     }
 
     @PreUpdate

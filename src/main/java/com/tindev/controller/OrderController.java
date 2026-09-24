@@ -6,6 +6,7 @@ import com.tindev.payload.dto.OrderDTO;
 import com.tindev.service.OrderService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -13,13 +14,16 @@ import java.util.List;
 @RestController
 @RequiredArgsConstructor
 @RequestMapping("/api/orders")
+@PreAuthorize("hasAnyRole('ADMIN', 'STORE_ADMIN', 'STORE_MANAGER', 'BRANCH_MANAGER', 'BRANCH_CASHIER')")
 public class OrderController {
     private final OrderService orderService;
 
     @PostMapping
+    @PreAuthorize("hasRole('BRANCH_CASHIER')")
     public ResponseEntity<OrderDTO> createOrder(
-            @RequestBody OrderDTO orderDTO) throws Exception {
-        return ResponseEntity.ok(orderService.createOrder(orderDTO));
+            @RequestBody OrderDTO orderDTO,
+            @RequestHeader("Idempotency-Key") String idempotencyKey) throws Exception {
+        return ResponseEntity.status(201).body(orderService.createOrder(orderDTO, idempotencyKey));
     }
 
     @GetMapping("/{id}")
@@ -67,7 +71,7 @@ public class OrderController {
     public ResponseEntity<List<OrderDTO>> getRecentOrder(
             @PathVariable Long branchId
     ) throws Exception {
-        return ResponseEntity.ok(orderService.getTodayOrdersByBranch(branchId));
+        return ResponseEntity.ok(orderService.getTop5RecentOrdersByBranchId(branchId));
     }
 
 }

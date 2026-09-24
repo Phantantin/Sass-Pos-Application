@@ -11,4 +11,9 @@ public interface CustomerRepository extends JpaRepository<Customer, Long> {
             String fullName, String email
     );
 
+    List<Customer> findByStoreId(Long storeId);
+    List<Customer> findByStoreIdAndFullNameContainingIgnoreCaseOrStoreIdAndEmailContainingIgnoreCase(
+            Long storeId, String fullName, Long duplicateStoreId, String email
+    );
+
 }

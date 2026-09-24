@@ -13,6 +13,8 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
+import java.math.BigDecimal;
+import java.util.List;
 
 
 @Data
@@ -28,7 +30,7 @@ public class RefundDTO {
 
     private String reason;
 
-    private Double amount;
+    private BigDecimal amount;
 
 //    private ShiftReport shiftReport;
     private Long shiftReportId;
@@ -42,4 +44,6 @@ public class RefundDTO {
     private PaymentType paymentType;
 
     private LocalDateTime createdAt;
+
+    private List<RefundItemDTO> items;
 }

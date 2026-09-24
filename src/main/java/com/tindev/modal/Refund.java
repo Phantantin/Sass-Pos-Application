@@ -7,6 +7,8 @@ import jakarta.persistence.*;
 import lombok.*;
 
 import java.time.LocalDateTime;
+import java.math.BigDecimal;
+import java.util.List;
 
 @Entity
 @Getter
@@ -17,7 +19,7 @@ import java.time.LocalDateTime;
 public class Refund {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.AUTO)
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
     @ManyToOne
@@ -25,7 +27,8 @@ public class Refund {
 
     private String reason;
 
-    private Double amount;
+    @Column(nullable = false, precision = 19, scale = 2)
+    private BigDecimal amount;
 
     @ManyToOne
     @JsonIgnore
@@ -37,9 +40,13 @@ public class Refund {
     @ManyToOne
     private Branch branch;
 
+    @Enumerated(EnumType.STRING)
     private PaymentType paymentType;
 
     private LocalDateTime createdAt;
+
+    @OneToMany(mappedBy = "refund", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<RefundItem> items;
 
     @PrePersist
     protected void onCreate() {

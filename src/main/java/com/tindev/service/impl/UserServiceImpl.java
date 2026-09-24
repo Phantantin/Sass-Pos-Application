@@ -1,6 +1,8 @@
 package com.tindev.service.impl;
 
 import com.tindev.configuration.JwtProvider;
+import com.tindev.domain.UserRole;
+import com.tindev.exceptions.ApiException;
 import com.tindev.exceptions.UserException;
 import com.tindev.modal.User;
 import com.tindev.repository.UserRepository;
@@ -11,6 +13,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
+import java.util.Objects;
 
 @Service
 @RequiredArgsConstructor
@@ -49,10 +52,14 @@ public class UserServiceImpl implements UserService {
     }
 
     @Override
-    public User getUserById(Long id) throws UserException, Exception {
-        return userRepository.findById(id).orElseThrow(
-                ()-> new Exception("User not found")
-        );
+    public User getUserById(Long id) throws UserException {
+        User target = userRepository.findById(id)
+                .orElseThrow(() -> new UserException("User not found"));
+        User current = getCurrentUser();
+        if (current.getRole() != UserRole.ROLE_ADMIN && !Objects.equals(current.getId(), target.getId())) {
+            throw ApiException.forbidden("Bạn chỉ có thể xem hồ sơ của chính mình");
+        }
+        return target;
     }
 
     @Override

@@ -7,4 +7,5 @@ import java.util.List;
 
 public interface CategoryRepository extends JpaRepository<Category, Long> {
     List<Category> findByStoreId(long storeId);
+    boolean existsByStoreIdAndNameIgnoreCase(Long storeId, String name);
 }

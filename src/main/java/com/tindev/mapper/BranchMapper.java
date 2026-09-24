@@ -5,6 +5,7 @@ import com.tindev.modal.Store;
 import com.tindev.payload.dto.BranchDTO;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 public class BranchMapper {
 
@@ -17,8 +18,11 @@ public class BranchMapper {
                 .email(branch.getEmail())
                 .closeTime(branch.getCloseTime())
                 .openTime(branch.getOpenTime())
-                .workingDays(branch.getWorkingDays())
+                // Element collections are lazy by default. Copy while the service
+                // transaction is open so JSON serialization never touches Hibernate.
+                .workingDays(branch.getWorkingDays() == null ? List.of() : List.copyOf(branch.getWorkingDays()))
                 .storeId(branch.getStore()!=null?branch.getStore().getId():null)
+                .manager(branch.getManager() != null ? UserMapper.toDTO(branch.getManager()) : null)
                 .createdAt(branch.getCreatedAt())
                 .updatedAt(branch.getUpdatedAt())
                 .build();
