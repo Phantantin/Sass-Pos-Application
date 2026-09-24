@@ -7,6 +7,7 @@ import com.tindev.service.ShiftReportService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDate;
@@ -16,12 +17,13 @@ import java.util.List;
 @RestController
 @RequiredArgsConstructor
 @RequestMapping("/api/shift-reports")
+@PreAuthorize("hasAnyRole('ADMIN', 'STORE_ADMIN', 'BRANCH_MANAGER', 'BRANCH_CASHIER')")
 public class ShiftReportController {
 
-    private final ShiftReportService service;
     private final ShiftReportService shiftReportService;
 
     @PostMapping("/start")
+    @PreAuthorize("hasRole('BRANCH_CASHIER')")
     public ResponseEntity<ShiftReportDTO> startShift() throws Exception{
         return ResponseEntity.ok(
                 shiftReportService.startShift()
@@ -29,16 +31,17 @@ public class ShiftReportController {
     }
 
     @PostMapping("/end")
+    @PreAuthorize("hasRole('BRANCH_CASHIER')")
     public ResponseEntity<ShiftReportDTO> endShift() throws Exception{
         return ResponseEntity.ok(
-                shiftReportService.endShift(null, null)
+                shiftReportService.endShift()
         );
     }
 
     @GetMapping("/current")
     public ResponseEntity<ShiftReportDTO> getCurrentShiftProgress() throws Exception{
         return ResponseEntity.ok(
-                shiftReportService.getCurrentShiftProgress(null)
+                shiftReportService.getCurrentShiftProgress()
         );
     }
 

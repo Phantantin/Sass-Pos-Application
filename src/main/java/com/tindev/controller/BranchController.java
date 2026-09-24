@@ -1,12 +1,12 @@
 package com.tindev.controller;
 
-import com.tindev.exceptions.UserException;
-import com.tindev.modal.Branch;
 import com.tindev.payload.dto.BranchDTO;
-import com.tindev.payload.response.ApiResponse;
 import com.tindev.service.BranchService;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -18,43 +18,46 @@ public class BranchController {
     private final BranchService branchService;
 
     @PostMapping
-    public ResponseEntity<BranchDTO> createBranch(@RequestBody BranchDTO branchDTO) throws UserException {
+    @PreAuthorize("hasAnyRole('ADMIN', 'STORE_ADMIN')")
+    public ResponseEntity<BranchDTO> createBranch(@Valid @RequestBody BranchDTO branchDTO) {
         BranchDTO createdBranch = branchService.createBranch(branchDTO);
-        return ResponseEntity.ok(createdBranch);
+        return ResponseEntity.status(HttpStatus.CREATED).body(createdBranch);
     }
 
     @GetMapping("/{id}")
+    @PreAuthorize("isAuthenticated()")
     public ResponseEntity<BranchDTO> getBranchById(
             @PathVariable Long id
-    ) throws Exception {
+    ) {
         BranchDTO getBranchById = branchService.getBranchById(id);
         return ResponseEntity.ok(getBranchById);
     }
 
     @GetMapping("/store/{storeId}")
+    @PreAuthorize("isAuthenticated()")
     public ResponseEntity<List<BranchDTO>> getAllBranchesByStoreId(
             @PathVariable Long storeId
-    ) throws Exception {
+    ) {
         List<BranchDTO> getAllBranchByStoreId = branchService.getAllBranchesByStoreId(storeId);
         return ResponseEntity.ok(getAllBranchByStoreId);
     }
 
     @PutMapping("/{id}")
+    @PreAuthorize("hasAnyRole('ADMIN', 'STORE_ADMIN', 'BRANCH_MANAGER')")
     public ResponseEntity<BranchDTO> updateBranch(
             @PathVariable Long id,
-            @RequestBody BranchDTO branchDTO
-    ) throws Exception {
+            @Valid @RequestBody BranchDTO branchDTO
+    ) {
         BranchDTO updateBranch = branchService.updateBranch(id, branchDTO);
         return ResponseEntity.ok(updateBranch);
     }
 
     @DeleteMapping("/{id}")
-    public ResponseEntity<ApiResponse> deleteBranch(
+    @PreAuthorize("hasAnyRole('ADMIN', 'STORE_ADMIN')")
+    public ResponseEntity<Void> deleteBranch(
             @PathVariable Long id
-    ) throws Exception {
+    ) {
         branchService.deleteBranch(id);
-        ApiResponse apiResponse = new ApiResponse();
-        apiResponse.setMessage("Branch deleted successfully");
-        return ResponseEntity.ok(apiResponse);
+        return ResponseEntity.noContent().build();
     }
 }

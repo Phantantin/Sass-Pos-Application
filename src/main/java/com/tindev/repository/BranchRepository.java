@@ -8,4 +8,5 @@ import java.util.List;
 public interface BranchRepository extends JpaRepository<Branch, Long> {
 
     List<Branch> findByStoreId(Long storeId);
+    List<Branch> findByStoreIdOrderByCreatedAtDesc(Long storeId);
 }

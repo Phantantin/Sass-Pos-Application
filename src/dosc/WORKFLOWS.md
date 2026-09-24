@@ -1,259 +1,70 @@
-# Workflow và sơ đồ hệ thống SaaS POS
+# Workflow hiện tại của SaaS POS
 
-Tài liệu này được dựng từ controller, service, repository và JPA entity trong mã nguồn hiện tại. Nó mô tả **hành vi đang có trong code**, không phải toàn bộ hành vi mong muốn khi đưa vào production.
+Tài liệu này mô tả hành vi đã được triển khai trong source hiện tại. Xem `docs/architecture.md`, `docs/auth.md`, `docs/permissions.md` và `docs/database.md` để biết chi tiết kỹ thuật.
 
-> **Xem Preview:** Hai sơ đồ SVG dưới đây hiển thị trực tiếp như hình trong hầu hết Markdown Preview. Các khối `mermaid` cũng render thành sơ đồ trên GitHub và VS Code Markdown Preview có hỗ trợ Mermaid.
-
-## Sơ đồ xem nhanh
-
-![Vòng đời vận hành SaaS POS](assets/pos-lifecycle.svg)
-
-Sơ đồ này cho thấy thứ tự nghiệp vụ dự kiến: xác thực → thiết lập cửa hàng → chuẩn bị catalog/tồn kho → mở ca → bán/hoàn tiền → tổng kết ca. Các phần sau phân tách rõ bước nào đã có trong code và bước nào còn giới hạn.
-
-## 1. Tổng quan
-
-### Actor
-
-| Role | Trách nhiệm dự kiến |
-|---|---|
-| `ROLE_ADMIN` | Quản trị toàn SaaS; không được tự signup |
-| `ROLE_STORE_ADMIN` | Chủ/quản trị cửa hàng |
-| `ROLE_STORE_MANAGER` | Quản lý cửa hàng |
-| `ROLE_BRANCH_MANAGER` | Quản lý chi nhánh |
-| `ROLE_BRANCH_CASHIER` | Mở ca, bán hàng, refund, đóng ca |
-
-### Module
-
-| Module | Chức năng |
-|---|---|
-| Auth/User | Signup, login, JWT, profile |
-| Store/Branch/Employee | Tenant, địa điểm bán và nhân sự |
-| Category/Product/Inventory | Catalog và tồn kho từng branch |
-| Customer/Order/Refund | Giao dịch bán hàng |
-| ShiftReport | Tổng hợp một ca thu ngân |
-
-### Luồng request
+## Xác thực qua BFF
 
 ```mermaid
 sequenceDiagram
-    actor Client
-    participant JWT as JwtValidation
-    participant API as Controller
-    participant Service
-    participant Repo as JPA Repository
-    participant DB as MySQL
-    Client->>JWT: HTTP + Bearer token
-    JWT->>JWT: Verify signature, email, authorities
-    JWT->>API: SecurityContext
-    API->>Service: DTO/path/query
-    Service->>Repo: Read/write entity
-    Repo->>DB: SQL
-    DB-->>Repo: Entity/result set
-    Repo-->>Service: Entity/result set
-    Service-->>API: DTO/result
-    API-->>Client: JSON response
+    actor User
+    participant Browser
+    participant BFF as Next.js BFF
+    participant API as Spring API
+    User->>Browser: Login/signup
+    Browser->>BFF: POST /api/auth/login hoặc signup
+    BFF->>API: POST /auth/login hoặc signup
+    API-->>BFF: JWT + user
+    BFF-->>Browser: HttpOnly sass_pos_session; payload đã lọc JWT
+    Browser->>BFF: /api/backend/api/...
+    BFF->>API: Bearer JWT
+    API-->>BFF: DTO hoặc ApiError
 ```
 
-## 2. Workflow xác thực
+`signup` chỉ tạo `ROLE_STORE_ADMIN`. Frontend không lưu JWT trong `localStorage` hoặc `sessionStorage`.
 
-### Signup
+## Luồng bán hàng
 
 ```mermaid
 flowchart TD
-    A[POST /auth/signup] --> B[Tìm email]
-    B -->|Đã tồn tại| X[UserException]
-    B -->|Mới| C{Role ADMIN?}
-    C -->|Có| X
-    C -->|Không| D[BCrypt password]
-    D --> E[Lưu User]
-    E --> F[Tạo JWT]
-    F --> G[Trả AuthResponse]
+    A[Cashier mở ca] --> B[POS gửi items + payment + Idempotency-Key]
+    B --> C[Server suy ra branch/cashier từ JWT]
+    C --> D{Store active và ca mở?}
+    D -- Không --> X[409/403 ApiError]
+    D -- Có --> E[Đọc product cùng store và giá DB]
+    E --> F[Khoá inventory theo branch/product]
+    F --> G{Đủ tồn?}
+    G -- Không --> X
+    G -- Có --> H[Trừ tồn + inventory movement SALE]
+    H --> I[Lưu order COMPLETED trong transaction]
+    I --> J[Trả receipt/order DTO]
 ```
 
-Client hiện tự chọn mọi role trừ `ROLE_ADMIN`. JWT khi **login** chứa `email`, `authorities`, hết hạn sau 8.400.000 ms. `/api/**` yêu cầu đăng nhập; `/auth/**` public.
+Retry cùng `Idempotency-Key` trả order đã tạo; không tạo thêm order.
 
-> **Hạn chế hiện tại:** `signup` tạo `Authentication` không kèm authorities trước khi phát JWT, nên token trả về sau signup có thể không chứa role. Đăng nhập lại tạo token đúng quyền; cần sửa luồng signup trước khi dùng thật.
-
-## 3. Workflow khởi tạo cửa hàng
+## Luồng refund
 
 ```mermaid
 flowchart TD
-    A[User đăng nhập] --> B[Tạo Store]
-    B --> C[Status mặc định PENDING]
-    C --> D[Admin moderate ACTIVE/BLOCKED]
-    D --> E[Tạo Branch]
-    E --> F[Tạo manager/cashier]
-    F --> G[Tạo Category]
-    G --> H[Tạo Product]
-    H --> I[Tạo Inventory theo Branch + Product]
+    A[Chọn order và lý do] --> B[Server kiểm tra scope branch + ca mở]
+    B --> C[Đọc số lượng đã bán trừ đã hoàn]
+    C --> D{Còn có thể hoàn?}
+    D -- Không --> X[409 ApiError]
+    D -- Có --> E[Lưu Refund + RefundItem]
+    E --> F[Cộng inventory + movement REFUND]
+    F --> G[Cập nhật order PARTIALLY_REFUNDED/REFUNDED]
 ```
 
-- Update store kiểm tra current user là `storeAdmin`.
-- Branch manager tạo từ store bắt buộc có `branchId` và được gán làm manager branch.
-- Tạo employee trực tiếp tại branch chỉ nhận cashier/branch manager.
-- SKU unique toàn database. Inventory chưa unique theo cặp branch/product.
-- Tạo Store hiện chỉ gán `Store.storeAdmin`; chưa gán ngược `User.store`, nên các API dựa vào `currentUser.store` có thể chưa có dữ liệu.
+Amount/refund item price được tính từ dữ liệu order server, không tin giá hoặc amount client gửi.
 
-## 4. Workflow bán hàng
+## Vận hành
 
-![Luồng bán hàng và báo cáo ca](assets/sales-and-shift.svg)
+1. Store admin tạo/được duyệt store, tạo branch, nhân viên, category, product và inventory.
+2. Cashier/manager mở ca trước khi POS hoặc refund.
+3. Cuối ca đóng shift; dashboard, báo cáo doanh thu/lợi nhuận và báo cáo biến động tồn kho lấy dữ liệu server theo tenant/branch scope. Báo cáo tồn kho aggregate `inventory_movement`, không phải dữ liệu do UI tính.
+4. Quản lý xếp lịch/chấm công; bảng lương có thể dùng lương cố định hoặc tự tính từ phút công đã hoàn thành và đơn giá giờ. Việc xác nhận trả lương chỉ ghi trạng thái nghiệp vụ, không tự chuyển tiền.
+5. Lịch sử hóa đơn hỗ trợ xem chi tiết, in và xuất CSV. Báo cáo hỗ trợ CSV/Excel/PDF theo phạm vi quyền.
+6. Chạy `GET /actuator/health` để kiểm tra backend. Docker Compose chờ MySQL/backend healthy trước service phụ thuộc.
 
-### Mở ca
+## Giới hạn có chủ đích
 
-1. `POST /api/shift-reports/start` lấy current user từ SecurityContext.
-2. Tìm shift của user trong ngày; nếu có thì báo `Shift already started today`.
-3. Lấy branch từ user, tạo `ShiftReport(shiftStart, cashier, branch)` và lưu.
-
-### Tạo order
-
-```mermaid
-sequenceDiagram
-    actor Cashier
-    participant OrderAPI
-    participant Service
-    participant ProductRepo
-    participant OrderRepo
-    Cashier->>OrderAPI: POST /api/orders
-    OrderAPI->>Service: OrderDTO
-    Service->>Service: Current user + branch
-    loop Mỗi item
-        Service->>ProductRepo: find productId
-        ProductRepo-->>Service: sellingPrice
-        Service->>Service: price = sellingPrice × quantity
-    end
-    Service->>Service: total = tổng line price
-    Service->>OrderRepo: Save order cascade items
-    OrderRepo-->>Cashier: OrderDTO
-```
-
-Cashier/branch được suy ra từ JWT. Giá lấy từ database. Code chưa kiểm tra ca mở, tồn kho, quantity dương, product thuộc store, hoặc trạng thái store. `customerId` không được resolve; service dùng object `customer` trong body.
-
-### Refund
-
-```mermaid
-flowchart TD
-    A[POST /api/refunds] --> B[Lấy current user]
-    B --> C[Tìm orderId]
-    C -->|Không có| D[Error]
-    C -->|Có| E[Lấy branch từ Order]
-    E --> F[Tạo Refund với reason và amount]
-    F --> G[Lưu và trả DTO]
-```
-
-`paymentType` và `shiftReportId` có trong entity/DTO, nhưng `createRefund` hiện chưa gán hai field này. Refund cũng chưa validate amount, chưa hoàn kho và chưa cập nhật order.
-
-### Đóng ca
-
-```mermaid
-sequenceDiagram
-    actor Cashier
-    participant ShiftAPI
-    participant ShiftService
-    participant ShiftRepo
-    participant OrderRepo
-    participant RefundRepo
-    Cashier->>ShiftAPI: POST /shift-reports/end
-    ShiftAPI->>ShiftService: endShift(null, null)
-    ShiftService->>ShiftRepo: Active shift mới nhất của cashier
-    ShiftService->>ShiftService: shiftEnd = null
-    ShiftService->>OrderRepo: Orders trong [shiftStart, null]
-    ShiftService->>RefundRepo: Refunds trong [shiftStart, null]
-    Note over ShiftService: Cần sửa: dùng LocalDateTime.now()<br/>trước khi tính và lưu báo cáo
-```
-
-```text
-totalSales  = Σ order.totalAmount
-totalRefund = Σ refund.amount
-netSale     = totalSales - totalRefund
-totalOrder  = số order trong ca
-```
-
-Đây là công thức service dự định áp dụng. Tuy nhiên, endpoint `POST /end` đang gọi `endShift(null, null)`: service bỏ qua `shiftReportId`, gán `shiftEnd = null`, rồi truy vấn với mốc kết thúc `null`. Vì vậy luồng đóng ca **chưa hoạt động đúng**. Sau khi sửa để dùng `LocalDateTime.now()`, cần giữ kiểm tra sales bằng 0 để phép chia phần trăm payment không sinh `NaN`.
-
-## 5. ERD
-
-```mermaid
-erDiagram
-    STORE ||--o{ BRANCH : has
-    STORE ||--o{ USER : employs
-    BRANCH ||--o{ USER : assigns
-    STORE ||--o{ CATEGORY : owns
-    STORE ||--o{ PRODUCT : owns
-    CATEGORY ||--o{ PRODUCT : classifies
-    BRANCH ||--o{ INVENTORY : holds
-    PRODUCT ||--o{ INVENTORY : stocked
-    BRANCH ||--o{ ORDER : receives
-    USER ||--o{ ORDER : creates
-    CUSTOMER o|--o{ ORDER : places
-    ORDER ||--|{ ORDER_ITEM : contains
-    PRODUCT ||--o{ ORDER_ITEM : references
-    ORDER ||--o{ REFUND : has
-    USER ||--o{ REFUND : handles
-    BRANCH ||--o{ REFUND : occurs
-    USER ||--o{ SHIFT_REPORT : works
-    BRANCH ||--o{ SHIFT_REPORT : records
-    SHIFT_REPORT o|--o{ REFUND : summarizes
-```
-
-### Enum
-
-- UserRole: `ROLE_ADMIN`, `ROLE_STORE_ADMIN`, `ROLE_BRANCH_CASHIER`, `ROLE_BRANCH_MANAGER`, `ROLE_STORE_MANAGER`
-- StoreStatus: `ACTIVE`, `PENDING`, `BLOCKED`
-- PaymentType: `CASH`, `UPI`, `CARD`
-- OrderStatus: `PENDING`, `COMPLETED` nhưng entity Order chưa có field này
-
-Enum hiện không dùng `@Enumerated(EnumType.STRING)`, nên JPA có thể lưu ordinal. `Customer` không thuộc Store, gây thiếu tenant isolation.
-
-## 6. Danh mục API
-
-| Nhóm | Endpoint |
-|---|---|
-| Auth | `POST /auth/signup`, `POST /auth/login` |
-| User | `GET /api/users/profile`, `GET /api/users/{id}` |
-| Store | `POST/GET /api/stores`, `GET /admin`, `GET /employee`, `GET/PUT/DELETE /{id}`, `PUT /{id}/moderate` |
-| Branch | `POST /api/branches`, `GET/PUT/DELETE /{id}`, `GET /store/{storeId}` |
-| Employee | `POST /store/{storeId}`, `POST /branch/{branchId}`, `PUT/DELETE /{id}`, `GET /store/{id}`, `GET /branch/{id}` |
-| Category | `POST /api/categories`, `GET /store/{storeId}`, `PUT/DELETE /{id}` |
-| Product | `POST /api/products`, `GET /store/{storeId}`, `PATCH/DELETE /{id}`, `GET /store/{storeId}/search?keyword=` |
-| Inventory | `POST /api/inventories`, `PUT/DELETE /{id}`, `GET /branch/{branchId}`, `GET /branch/{branchId}/product/{productId}` |
-| Customer | `POST/GET /api/customers`, `PUT/DELETE /{id}`, `GET /search?q=` |
-| Order | `POST /api/orders`, `GET /{id}`, `/branch/{id}`, `/cashier/{id}`, `/today/branch/{id}`, `/customer/{id}`, `/recent/{id}` |
-| Refund | `POST/GET /api/refunds`, `GET /{id}`, `/cashier/{id}`, `/branch/{id}`, `/shift/{id}`, `/cashier/{id}/range` |
-| Shift | `POST /start`, `POST /end`, `GET /current`, `/cashier/{id}`, `/cashier/{id}/by-date`, `/branch/{id}`, `/{id}` |
-
-Header chuẩn:
-
-```http
-Authorization: Bearer <jwt>
-Content-Type: application/json
-Accept-Language: vi
-```
-
-## 7. Lỗi và khoảng trống tìm thấy
-
-| Vấn đề | Hiện trạng / hướng sửa |
-|---|---|
-| Credential | DB password và JWT secret hard-code; chuyển sang environment variables và rotate |
-| Authorization | Rule role dùng `/api/super-admin/**`, `/api/admin/**`, `/api/cashier/**`; role `STORE_OWNER`/`CASHIER` cũng không khớp enum hiện tại. Phần lớn URL controller hiện chỉ cần authenticated; thêm method-level authorization |
-| Tenant isolation | Nhiều API không kiểm tra store/branch thuộc current user |
-| Inventory lookup | Controller truyền `(branchId, productId)` nhưng service khai báo `(productId, branchId)` |
-| Delete category | Controller gọi `updateCategory`, không gọi delete |
-| Update employee | Set field rồi trả `null`, không save/encode password |
-| Order status | Filter nhận status nhưng entity không có status và không filter |
-| Recent orders | Endpoint recent gọi orders hôm nay thay vì top 5 recent |
-| Delete order | Service chỉ find, không delete |
-| Delete refund | Gọi `deleteById` hai lần |
-| Tiền tệ | Dùng `Double`; nên dùng `BigDecimal` |
-| Shift snapshots | Cascade `Product`/`Order` từ ShiftReport có rủi ro; nên dùng projection/snapshot riêng |
-| Đóng ca | Controller truyền `null` cho cả ID và `shiftEnd`, khiến truy vấn tổng kết ca có cận trên `null`; dùng thời điểm server hiện tại và kiểm tra ca của cashier |
-| Validation | Thiếu `@Valid`, quantity/amount checks và global exception handler |
-| Database | Nên dùng Flyway/Liquibase thay `ddl-auto=update` trong production |
-
-## 8. Test cần bổ sung
-
-- Unit test cho service/mapper và security test theo từng role.
-- Integration test với Testcontainers MySQL.
-- Luồng mở ca → order → refund → đóng ca.
-- Tenant isolation giữa hai store.
-- Hai cashier đồng thời bán cùng SKU và transaction/locking tồn kho.
-- Empty shift, refund vượt giá trị order, product khác store, duplicate inventory.
+Stripe Checkout/Portal/webhook và UploadThing đã có code nhưng vẫn cần credential test hợp lệ để xác minh với dịch vụ thật. VietQR hiện là QR chuyển khoản và thu ngân xác nhận thủ công, chưa có webhook ngân hàng. POS offline/offline order queue chưa có. Bảng lương chưa xử lý thuế, bảo hiểm, làm thêm giờ hoặc chuyển khoản thực. Một số chuỗi giao diện mới vẫn chưa được đưa hết vào bộ từ điển Việt/Anh. Không có workflow giả tạo thanh toán subscription thành công.

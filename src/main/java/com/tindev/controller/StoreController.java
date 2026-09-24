@@ -1,17 +1,24 @@
 package com.tindev.controller;
 
 import com.tindev.domain.StoreStatus;
-import com.tindev.exceptions.UserException;
-import com.tindev.mapper.StoreMapper;
-import com.tindev.modal.Store;
 import com.tindev.modal.User;
 import com.tindev.payload.dto.StoreDto;
-import com.tindev.payload.response.ApiResponse;
 import com.tindev.service.StoreService;
 import com.tindev.service.UserService;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
 
@@ -19,64 +26,62 @@ import java.util.List;
 @RequiredArgsConstructor
 @RequestMapping("/api/stores")
 public class StoreController {
-
     private final StoreService storeService;
     private final UserService userService;
 
     @PostMapping
-    public ResponseEntity<StoreDto> createStore(@RequestBody StoreDto storeDto,
-                                                @RequestHeader("Authorization")String jwt) throws UserException {
-        User user = userService.getUserFromJwtToken(jwt);
-        return ResponseEntity.ok(storeService.createStore(storeDto, user));
+    @PreAuthorize("hasRole('STORE_ADMIN')")
+    public ResponseEntity<StoreDto> createStore(@Valid @RequestBody StoreDto storeDto) throws Exception {
+        User user = userService.getCurrentUser();
+        return ResponseEntity.status(HttpStatus.CREATED).body(storeService.createStore(storeDto, user));
     }
 
-
-
-    @GetMapping()
-    public ResponseEntity<List<StoreDto>> getAllStore(
-            @RequestHeader("Authorization")String jwt) throws Exception {
+    @GetMapping
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<List<StoreDto>> getAllStores() {
         return ResponseEntity.ok(storeService.getAllStores());
     }
 
+    @GetMapping("/managed")
+    @PreAuthorize("hasRole('STORE_ADMIN')")
+    public ResponseEntity<List<StoreDto>> getManagedStores() {
+        return ResponseEntity.ok(storeService.getManagedStores());
+    }
+
     @GetMapping("/admin")
-    public ResponseEntity<StoreDto> getStoreByAdmin(
-            @RequestHeader("Authorization")String jwt) throws Exception {
-        return ResponseEntity.ok(StoreMapper.toDTO(storeService.getStoreByAdmin()));
+    @PreAuthorize("hasRole('STORE_ADMIN')")
+    public ResponseEntity<StoreDto> getStoreByAdmin() throws Exception {
+        return ResponseEntity.ok(storeService.getStoreByEmployee());
     }
 
     @GetMapping("/employee")
-    public ResponseEntity<StoreDto> getStoreByEmployee(
-            @PathVariable Long id,
-            @RequestHeader("Authorization")String jwt) throws Exception {
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<StoreDto> getStoreByEmployee() throws Exception {
         return ResponseEntity.ok(storeService.getStoreByEmployee());
     }
 
     @PutMapping("/{id}")
-    public ResponseEntity<StoreDto> updateStore(@PathVariable Long id,
-                                                @RequestBody StoreDto storeDto) throws Exception {
+    @PreAuthorize("hasAnyRole('ADMIN', 'STORE_ADMIN')")
+    public ResponseEntity<StoreDto> updateStore(@PathVariable Long id, @Valid @RequestBody StoreDto storeDto) throws Exception {
         return ResponseEntity.ok(storeService.updateStore(id, storeDto));
     }
 
     @PutMapping("/{id}/moderate")
-    public ResponseEntity<StoreDto> moderateStore(@PathVariable Long id,
-                                                @RequestParam StoreStatus status) throws Exception {
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<StoreDto> moderateStore(@PathVariable Long id, @RequestParam StoreStatus status) throws Exception {
         return ResponseEntity.ok(storeService.moderateStore(id, status));
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<StoreDto> getStoreById(
-            @PathVariable Long id,
-            @RequestHeader("Authorization")String jwt) throws Exception {
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<StoreDto> getStoreById(@PathVariable Long id) throws Exception {
         return ResponseEntity.ok(storeService.getStoreById(id));
     }
 
     @DeleteMapping("/{id}")
-    public ResponseEntity<ApiResponse> deleteStore(@PathVariable Long id)throws Exception {
+    @PreAuthorize("hasAnyRole('ADMIN', 'STORE_ADMIN')")
+    public ResponseEntity<Void> deleteStore(@PathVariable Long id) throws Exception {
         storeService.deleteStore(id);
-        ApiResponse apiResponse = new ApiResponse();
-        apiResponse.setMessage("Store deleted successfully");
-        return ResponseEntity.ok(apiResponse);
+        return ResponseEntity.noContent().build();
     }
-
-
 }

@@ -11,7 +11,7 @@ public class StoreMapper {
         storeDto.setId(store.getId());
         storeDto.setBrand(store.getBrand());
         storeDto.setDescription(store.getDescription());
-        storeDto.setStoreAdmin(UserMapper.toDTO(store.getStoreAdmin()));
+        storeDto.setStoreAdmin(store.getStoreAdmin() == null ? null : UserMapper.toDTO(store.getStoreAdmin()));
         storeDto.setStoreType(store.getStoreType());
         storeDto.setContact(store.getContact());
         storeDto.setCreatedAt(store.getCreatedAt());
