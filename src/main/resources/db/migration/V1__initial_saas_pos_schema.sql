@@ -21,7 +21,11 @@ CREATE TABLE branch (
     open_time TIME, close_time TIME, created_at DATETIME(6), updated_at DATETIME(6),
     store_id BIGINT, manager_id BIGINT UNIQUE
 );
-CREATE TABLE branch_working_days (branch_id BIGINT NOT NULL, working_days VARCHAR(255));
+CREATE TABLE branch_working_days (
+    branch_id BIGINT NOT NULL,
+    working_days VARCHAR(255) NOT NULL,
+    PRIMARY KEY (branch_id, working_days)
+);
 CREATE TABLE category (
     id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY, name VARCHAR(255) NOT NULL, store_id BIGINT,
     CONSTRAINT uk_category_store_name UNIQUE (store_id, name)
